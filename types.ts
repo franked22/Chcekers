@@ -42,3 +42,20 @@ export interface GamePoints {
   [Player.RED]: number; // Current game points
   [Player.BLACK]: number; // Current game points
 }
+
+export interface GameState {
+  board: BoardState;
+  turn: Player;
+  gamePoints: GamePoints;
+  lastMove: Move | null;
+  mustJumpFrom: Position | null;
+  gameStatus: GameStatus;
+  winner: Player | null;
+}
+
+export interface MoveRecord {
+  move: Move;
+  player: Player;
+  turnNumber: number;
+  notation: string;
+}
