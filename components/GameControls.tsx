@@ -11,34 +11,61 @@ interface GameControlsProps {
   winner: Player | null;
   onReset: () => void;
   onMenu: () => void;
+  onUndo: () => void;
+  canUndo: boolean;
+  onToggleHistory: () => void;
   isAiThinking: boolean;
   mustJump?: boolean;
 }
 
 const GameControls: React.FC<GameControlsProps> = ({ 
-  score, gamePoints, turn, gameStatus, gameMode, difficulty, winner, onReset, onMenu, isAiThinking, mustJump
+  score, gamePoints, turn, gameStatus, gameMode, difficulty, winner, onReset, onMenu, onUndo, canUndo, onToggleHistory, isAiThinking, mustJump
 }) => {
   return (
     <div className="w-full max-w-[800px] flex flex-col gap-2 pointer-events-auto z-10">
       {/* Header Bar */}
-      <div className="bg-gray-800/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-gray-700 flex justify-between items-center relative overflow-hidden">
-        <button onClick={onMenu} className="text-gray-400 hover:text-white transition-colors flex items-center gap-1 text-sm font-semibold z-10">
-          <span className="text-lg">‹</span> Menu
-        </button>
+      <div className="bg-gray-800/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-gray-700 flex justify-between items-center relative overflow-hidden gap-2">
+        <div className="flex items-center gap-2 z-10">
+          <button onClick={onMenu} className="text-gray-400 hover:text-white transition-colors flex items-center gap-1 text-sm font-semibold">
+            <span className="text-lg">‹</span> Menu
+          </button>
+          {gameStatus === GameStatus.PLAYING && (
+            <button
+              onClick={onUndo}
+              disabled={!canUndo || isAiThinking}
+              className={`
+                flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors border border-gray-600
+                ${!canUndo || isAiThinking ? 'text-gray-600 border-gray-700 cursor-not-allowed' : 'text-gray-300 hover:text-white hover:bg-gray-700 hover:border-gray-500'}
+              `}
+              title="Undo last move"
+            >
+              <span>↩</span> Undo
+            </button>
+          )}
+        </div>
         
-        <div className="text-gray-300 font-bold text-sm tracking-wide z-10 flex flex-col items-center">
+        <div className="text-gray-300 font-bold text-sm tracking-wide z-10 flex flex-col items-center flex-1">
           <span>{gameMode === GameMode.PVP ? "PvP" : `PvC • Level ${difficulty}`}</span>
           {mustJump && gameStatus === GameStatus.PLAYING && (
             <span className="text-[10px] text-yellow-400 animate-pulse font-extrabold tracking-wider mt-0.5">DOUBLE JUMP AVAILABLE!</span>
           )}
         </div>
         
-        <button 
-          onClick={onReset}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors shadow-sm z-10"
-        >
-          {gameStatus === GameStatus.GAME_OVER ? "New Game" : "Reset"}
-        </button>
+        <div className="flex items-center gap-2 z-10">
+          <button
+            onClick={onToggleHistory}
+            className="text-gray-400 hover:text-white hover:bg-gray-700 p-1.5 rounded transition-colors"
+            title="Move History"
+          >
+            📜
+          </button>
+          <button
+            onClick={onReset}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors shadow-sm"
+          >
+            {gameStatus === GameStatus.GAME_OVER ? "New Game" : "Reset"}
+          </button>
+        </div>
 
         {/* Dynamic Background Alert for Must Jump */}
         {mustJump && (

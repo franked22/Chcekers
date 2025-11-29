@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import Board from './components/Board';
 import GameControls from './components/GameControls';
 import Celebration from './components/Celebration';
+import MoveList from './components/MoveList';
 import { 
   BoardState, Player, Position, Move, 
-  GameMode, GameStatus, Score, GamePoints
+  GameMode, GameStatus, Score, GamePoints,
+  GameState, MoveRecord
 } from './types';
 import { 
   createInitialBoard, getValidMoves, applyMove, 
@@ -34,6 +36,11 @@ const App: React.FC = () => {
   
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [turnMoves, setTurnMoves] = useState<Move[]>([]); 
+
+  // History
+  const [history, setHistory] = useState<GameState[]>([]);
+  const [moveHistory, setMoveHistory] = useState<MoveRecord[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   // --- Initialization & Turn Calculation ---
   useEffect(() => {
@@ -112,6 +119,8 @@ const App: React.FC = () => {
     setMustJumpFrom(null);
     setGamePoints({ [Player.RED]: 0, [Player.BLACK]: 0 }); // Reset current game points
     setIsAiThinking(false); 
+    setHistory([]);
+    setMoveHistory([]);
   };
 
   const endGame = (winner: Player | null, winBonus: number) => {
@@ -132,6 +141,18 @@ const App: React.FC = () => {
       return;
     }
 
+    // Save state for Undo
+    const currentState: GameState = {
+      board: board.map(row => row.map(p => p ? { ...p } : null)),
+      turn,
+      gamePoints: { ...gamePoints },
+      lastMove: lastMove ? { ...lastMove } : null,
+      mustJumpFrom: mustJumpFrom ? { ...mustJumpFrom } : null,
+      gameStatus,
+      winner
+    };
+    setHistory(prev => [...prev, currentState]);
+
     const { board: newBoard, pointsGained, didPromote } = applyMove(board, move);
     
     // Update Score
@@ -139,6 +160,18 @@ const App: React.FC = () => {
     setBoard(newBoard);
     setLastMove(move);
     setSelectedPos(null);
+
+    // Add to move history log
+    const colToLetter = (c: number) => String.fromCharCode(65 + c);
+    const rowToNum = (r: number) => 8 - r;
+    const notation = `${colToLetter(move.from.c)}${rowToNum(move.from.r)} → ${colToLetter(move.to.c)}${rowToNum(move.to.r)}`;
+
+    setMoveHistory(prev => [...prev, {
+      move,
+      player: currentPlayer,
+      turnNumber: prev.length + 1,
+      notation
+    }]);
 
     // Multi-Jump Logic
     let isTurnOver = true;
@@ -165,6 +198,59 @@ const App: React.FC = () => {
         setTurn(nextPlayer);
       }
     }
+  };
+
+  const undoMove = () => {
+    if (history.length === 0) return;
+
+    // If it's PvC and it's the player's turn (RED), we generally want to undo both the AI's move and the player's move
+    // to get back to the player's previous turn.
+    // However, if the AI hasn't moved yet (e.g. player made a move, but AI is thinking, though we disable undo then),
+    // or if the game just ended, we might need to be careful.
+
+    // Simplified Undo Logic: Always pop one state.
+    // If PvC and it's Player turn, we pop TWICE to go back to Player's PREVIOUS turn state (before AI played).
+    // But we must be careful if we are in the middle of a multi-jump or something.
+
+    // Case 1: PvP - Just undo last state
+    // Case 2: PvC - If it's player's turn, undo last 2 moves (AI's and Player's) to get back to Player.
+    //             - If it's AI's turn (unlikely as buttons disabled), undo 1.
+
+    let statesToPop = 1;
+    if (gameMode === GameMode.PVC && turn === Player.RED && history.length >= 2) {
+      // Check if the previous move was by AI (Black).
+      // The history stack stores the state *before* the move.
+      // So history[last] is the state before AI moved (Player's turn finished).
+      // history[last-1] is the state before Player moved.
+      statesToPop = 2;
+    }
+
+    // Prevent underflow
+    if (statesToPop > history.length) statesToPop = history.length;
+
+    const newHistory = [...history];
+    const prevState = newHistory[newHistory.length - statesToPop];
+
+    // Remove popped states
+    const remainingHistory = newHistory.slice(0, newHistory.length - statesToPop);
+
+    // Update State
+    setBoard(prevState.board);
+    setTurn(prevState.turn);
+    setGamePoints(prevState.gamePoints);
+    setLastMove(prevState.lastMove);
+    setMustJumpFrom(prevState.mustJumpFrom);
+    setGameStatus(prevState.gameStatus);
+    setWinner(prevState.winner);
+    setHistory(remainingHistory);
+
+    // Update move log
+    setMoveHistory(prev => prev.slice(0, prev.length - statesToPop));
+
+    // Reset selection
+    setSelectedPos(null);
+    setValidMoves([]);
+    setIsAiThinking(false); // Safety
   };
 
   const handleSquareClick = (pos: Position) => {
@@ -287,13 +373,23 @@ const App: React.FC = () => {
           winner={winner}
           onReset={() => startGame(gameMode, difficulty)}
           onMenu={() => setGameMode(null)}
+          onUndo={undoMove}
+          canUndo={history.length > 0}
+          onToggleHistory={() => setShowHistory(!showHistory)}
           isAiThinking={isAiThinking}
           mustJump={!!mustJumpFrom}
         />
       </div>
 
       {/* 2. Board Container - Grow to fill available space, but constrain to avoid overflow */}
-      <div className="flex-grow flex items-center justify-center p-2 min-h-0">
+      <div className="flex-grow flex items-center justify-center p-2 min-h-0 relative">
+        {/* Move List Overlay */}
+        <MoveList
+          moves={moveHistory}
+          isOpen={showHistory}
+          onClose={() => setShowHistory(false)}
+        />
+
         {/* Aspect square forces the board to be square, max-h-full/max-w-full fits it in container */}
         <div className="aspect-square h-full max-h-full max-w-full">
           <Board 
