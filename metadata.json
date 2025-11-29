@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Checkers Master",
+  "description": "A modern, responsive Checkers game featuring Player vs Player and AI modes. The AI is powered by Google's Gemini API with adjustable difficulty levels (1-5), capable of strategic reasoning and move evaluation.",
+  "requestFramePermissions": []
+}
